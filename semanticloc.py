@@ -6,7 +6,9 @@ import math
 import cv2
 import numpy as np
 import time
+import random
 import pickle
+#from numba import jit
 
 #from local_semantic_graph import *
 
@@ -14,20 +16,37 @@ ROW = 384
 COL = 384
 IMG_SZ = [ROW, COL]
 TOTALPIXELS = ROW * COL
+# wei xi tong
+'''
 ALL_TYPES = {'2':'building', '3':'sky', '5':'tree', '7':'road', '10':'grass', '12':'pavement', '18':'flowerbed', '21':'car', '44':'guideboard', 'other':'unknow'}
 TYPE_RANK = {'2':0, '3':1, '5':2, '7':3, '10':4, '12':5, '18':6, '21':7, '44':8, 'other':9}
-CLASS_CMP_WEIGHTS_DIC = {'2':2, '3':0.2, '5':0.1, '7':0.2, '10':0.5, '12':1, '18':1, '21':0, '44':2.5, 'other':0.5}
+CLASS_CMP_WEIGHTS_DIC = {'2':2, '3':0.3, '5':0.3, '7':0.3, '10':0.5, '12':1, '18':1, '21':0, '44':2.5, 'other':0.5}
 CLASS_CMP_WEIGHTS = [2, 0.3, 0.3, 0.3, 0.5, 1, 1, 0, 2.5, 0.5]
+'''
+# frrn
+ID_CHANGE = {'0':255, '1':255, '2':255, '3':255, '4':255, '5':255, '6':255, '7':0, '8':1, '9':255, '10':255, '11':2, '12':3, '13':4, '14':255,'15':255,'16':255, '17':5, '18':255, '19':6, '20':7, '21':8, '22':9, '23':10, '24':11, '25':12, '26':13, '27':14, '28':15, '29':255, '30':255, '31':16, '32':17, '33':18, '-1':-1}
+ALL_TYPES = {'0':'road', '1':'sidewalk', '2':'building', '3':'wall', '4':'fence', '5':'pole', '6':'trafficc light', '7':'traffic sign', '8':'vegetation', '9':'terrain', '10':'sky', '11':'person', '12':'rider', '13':'car', 'other':'unknow'}
+TYPE_RANK = {'0':0, '1':1, '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9, '10':10, '11':11, '12':12, '13':13, 'other':14}
+CLASS_CMP_WEIGHTS_DIC = {'0':0.2, '1':1, '2':2, '3':1, '4':1, '5':1, '6':2, '7':2, '8':0.5, '9':0.5, '10':0.2, '11':0, '12':0, '13':0, 'other':0.5}
+CLASS_CMP_WEIGHTS = [0.2, 1, 2, 1, 1, 1, 2, 2, 0.5, 0.5, 0.2, 0, 0, 0, 0.5]
+
+
 #CONTENT_CMP_WEIGHTS = {'size':1, 'conlen':1, 'shape':1, 'links':1}
 CONTENT_CMP_WEIGHTS = [1, 1, 1, 1]
 AREA_THRESHOLD = 300
-IMG_FILE_PATH = '../resultseg'
-CSV_PATH_HEAD = '../csv/seg_'
+# IMG_FILE_PATH = '../resultseg'
+# CSV_PATH_HEAD = '../csv/seg_'
+# PKL_FILE_PATH = 'smalldatabasetest/'
+
+IMG_FILE_PATH = '../162621seg'
+PKL_FILE_PATH = '162621seg/'
+OUTPUT_FILE_PATH = PKL_FILE_PATH#'1seg/'
 
 def gen_fname_list(rootdir='./'):
     flist=[]
     for pname,dnames,fnames in os.walk(rootdir):      
         flist +=[ os.path.join(pname,fname) for fname in fnames]
+    flist.sort()
     return flist
 
 # @ input:
@@ -96,6 +115,8 @@ def compare_two_graph(g1, g2):
     for k1 in range(lens):
         #tmpweights = []
         n1 = sg[k1]
+        if(n1['type'] == 'other'):
+            continue
         tmpallscore = []
         tmpkeys = []
         for k2 in range(lenl):
@@ -109,6 +130,9 @@ def compare_two_graph(g1, g2):
             simularone = np.argmax(tmpallscore)
             allscore.append(tmpallscore[simularone])
             usedkeys_in_lg.append(tmpkeys[simularone])
+            weights.append(CLASS_CMP_WEIGHTS_DIC[n1['type']])
+        elif(not n2['type'] == 'other'):
+            allscore.append(0)
             weights.append(CLASS_CMP_WEIGHTS_DIC[n1['type']])
         #else:
             # no match object in larger graph
@@ -168,6 +192,7 @@ def cmp_nodes(n1, n2=None, g1=None, g2=None):
             score = CONTENT_CMP_WEIGHTS * np.fabs(alldels)
             score = np.sum(score) / np.sum(CONTENT_CMP_WEIGHTS)
             score = math.exp( - score)
+            #print(n1['type'],n2['type'],alldels,score)
             #(delsize*CONTENT_CMP_WEIGHTS['size'] + delconlen*CONTENT_CMP_WEIGHTS['conlen'] + delshape*CONTENT_CMP_WEIGHTS['shape'] + dellink*)
         else:
             alldels = []
@@ -223,9 +248,11 @@ def build_local_semantic_graph(imgseg):
         alltype_imgs[k] = np.zeros_like(imgseg, dtype='uint8')
         #objects_of_each_class[k] = []
 
-    for y in range(ROW):
-        for x in range(COL):
-            str_typeid = str(imgseg[y,x])
+    for y in range(imgseg.shape[0]):
+        for x in range(imgseg.shape[1]):
+            oriid = str(imgseg[y,x])
+            str_typeid = str(ID_CHANGE[oriid])
+            # str_typeid = str(imgseg[y,x])
             if(str_typeid in ALL_TYPES.keys()):
                 alltype_imgs[str_typeid][y,x] = 255
             else:
@@ -280,16 +307,25 @@ def test_build_local_graph():
 def build_all_local_graph():
     start = time.time()
     flist=gen_fname_list(IMG_FILE_PATH)
-    outfile = open('local_semantic_graph.pkl', 'wb')
+    outfile = open(OUTPUT_FILE_PATH+'local_semantic_graph.pkl', 'wb')
     #outfile.write('local_graphs={\n')
     i=0
     towrite = {}
     for filename in flist:
+        # read seg from csv
+        '''
         filename = filename.strip('.jpeg')
         filename = filename.split('/')[-1]
         fname_csv = CSV_PATH_HEAD+filename+'.csv'
         print('image {}/{}:{}'.format(i, len(flist), filename))
         type_id = np.genfromtxt(fname_csv, delimiter=',').astype(int).reshape(ROW,COL)
+        '''
+        # read seg from png
+        filename = filename.strip('.png')
+        filename = filename.split('/')[-1]
+        print(filename)
+        type_id = cv2.imread(IMG_FILE_PATH+'/'+filename+'.png', cv2.IMREAD_UNCHANGED)
+        
         output = build_local_semantic_graph(type_id)
         print('{} objects are in the img'.format(len(output)))
         #draw_in_seg(filename, output)
@@ -310,34 +346,48 @@ def test_cmp_two_graph():
     #g1 = local_graphs['photo_lng121.445384_lat31.029858_image3']
     #g2 = local_graphs['photo_lng121.444242_lat31.030467_image1']
 
-    pklfile = open('local_semantic_graph0911.pkl', 'rb')
+    pklfile = open(OUTPUT_FILE_PATH+'local_semantic_graph.pkl', 'rb')
     local_graphs = pickle.load(pklfile)
     '''
-    name1 = 'photo_lng121.445384_lat31.029858_image3'
-    name2 = 'photo_lng121.445411_lat31.030709_image1'
-    name3 = 'photo_lng121.444242_lat31.030467_image1'
+    #cmp two graph
+    name1 = 'photo_lng121.444325_lat31.031795_heading69.35_northdir200.65_image_02'
+    name2 = 'photo_lng121.444325_lat31.031795_heading69.35_northdir200.65_image_15'
+    name3 = 'photo_lng121.444325_lat31.031795_heading69.35_northdir200.65_image_14'
     g1 = local_graphs[name1]
-    g2 = local_graphs[name3]
+    g2 = local_graphs[name2]
+    g3 = local_graphs[name3]
     #print(type(g1))
     s1 = compare_two_graph(g1, g2)
-    s2 = compare_two_graph(g2, g1)
+    print('..........')
+    s2 = compare_two_graph(g1, g3)
 
     print('simularity between {} and {} is {}|{}'.format(name1, name2, s1, s2))
     '''
+    #cmp all graph
     flist=gen_fname_list(IMG_FILE_PATH)
-    outfile = open('simularitymatrix.pkl', 'wb')
+    outfile = open(OUTPUT_FILE_PATH+'simularitymatrix.pkl', 'wb')
     i = 0
     j = 0
     simularmatrix = np.zeros([len(flist), len(flist)])
     totallen = len(flist)
     start = time.time()
     for filename in flist:
+        # wei xi tong
+        '''
         filename = filename.strip('.jpeg')
+        filename = filename.split('/')[-1]
+        '''
+        # 162621
+        filename = filename.strip('.png')
         filename = filename.split('/')[-1]
         g1 = local_graphs[filename]
         j = 0
         for filename2 in flist:
+            '''
             filename2 = filename2.strip('.jpeg')
+            filename2 = filename2.split('/')[-1]
+            '''
+            filename2 = filename2.strip('.png')
             filename2 = filename2.split('/')[-1]
             g2 = local_graphs[filename2]
 
@@ -348,33 +398,102 @@ def test_cmp_two_graph():
             j += 1
         i += 1
     totaltime = time.time() - start
-    print('total time is {} seconds, average {} seconds for one compare'.format(totaltime, totaltime/totallen/totallen))
+    print('total time is {} seconds, average {} seconds for one compare, {} seconds for one set compare'.format(totaltime, totaltime/totallen/totallen, totaltime/totallen))
     
     cv2.imshow('res', simularmatrix)
-    cv2.waitKey(0)
+    cv2.waitKey(1)
     #outfile.write(simularmatrix)
     pickle.dump(simularmatrix, outfile, 1)
     outfile.close()
+    
+
+def test_cmp_modify_graph():
+    DIFF_PERCENT = 0.1
+    drow = int(ROW*(1-DIFF_PERCENT))
+    dcol = int(COL*(1-DIFF_PERCENT))
+    pklfile = open('local_semantic_graph0911.pkl', 'rb')
+    local_graphs = pickle.load(pklfile)
+    flist=gen_fname_list(IMG_FILE_PATH)
+    outfile = open('modsimularitymatrix.pkl', 'wb')
+    i = 0
+    j = 0
+    simularmatrix = np.zeros([len(flist), len(flist)])
+    totallen = len(flist)
+    start = time.time()
+    for filename in flist:
+        filename = filename.strip('.jpeg')
+        filename = filename.split('/')[-1]
+        fname_csv = CSV_PATH_HEAD+filename+'.csv'
+        type_id = np.genfromtxt(fname_csv, delimiter=',').astype(int).reshape(ROW,COL)
+        startrow = int(random.random()*DIFF_PERCENT*ROW)
+        startcol = int(random.random()*DIFF_PERCENT*COL)
+        type_id = type_id[startrow:(startrow+drow),startcol:(startcol+dcol)]
+        tst = time.time()
+        g1 = build_local_semantic_graph(type_id)
+        gent = time.time() - tst
+
+        j = 0
+        for filename2 in flist:
+            filename2 = filename2.strip('.jpeg')
+            filename2 = filename2.split('/')[-1]
+            g2 = local_graphs[filename2]
+
+            s = compare_two_graph(g1, g2)
+            simularmatrix[i][j] = s
+            if(filename2==filename):
+                print('({},{})/({},{})simularity between {} and {} is {} with shift({},{}), generating a graph use {} second'.format(i,j, totallen,totallen, filename, filename2, s, startrow, startcol, gent))
+            j += 1
+        i += 1
+
+    totaltime = time.time() - start
+    print('total time is {} seconds, average {} seconds for one compare'.format(totaltime, totaltime/totallen/totallen))
+    
+    #outfile.write(simularmatrix)
+    pickle.dump(simularmatrix, outfile, 1)
+    outfile.close()
+    cv2.imshow('res', simularmatrix)
+    cv2.waitKey(0)
+
+def show_neibor_graph_cmp():
+    readmatrixpkl = 'simularitymatrix'
+    pklfile = open(PKL_FILE_PATH+readmatrixpkl+'.pkl', 'rb')
+    simularmatrix = pickle.load(pklfile)
+
+    for i in range(len(simularmatrix)):
+        print('the {} img cmp'.format(i))
+        print(simularmatrix[i])
+        toshow = np.zeros(7)
+        for k in range(7):
+            idd = i+k-3
+            if(idd >= len(simularmatrix)):
+                idd -= len(simularmatrix)
+            toshow[k] = simularmatrix[i][idd]
+        print(toshow)
 
 def read_and_show_simularmatrix():
-    pklfile = open('simularitymatrix.pkl', 'rb')
+    readmatrixpkl = 'simularitymatrix'
+    pklfile = open(PKL_FILE_PATH+readmatrixpkl+'.pkl', 'rb')
     simularmatrix = pickle.load(pklfile)
     allaver = []
     for i in range(len(simularmatrix)):
         aver = (np.sum(simularmatrix[i])-1)/(len(simularmatrix)-1)
         allaver.append(aver)
-        print('image {} average simular score is {}'.format(i,aver))
+        #print('image {} average simular score is {}'.format(i,aver))
     totalaver = np.mean(allaver)
     maxaver = np.max(allaver)
+    maxaverid = np.argmax(allaver)
     minaver = np.min(allaver)
-    print('total average simular score is {}, max sumular is {}, min sumular is {}'.format(totalaver, maxaver, minaver))
+    minaverid = np.argmin(allaver)
+    print('total average simular score is {}, max simular is {} of node {}, min simular is {} of node {}'.format(totalaver, maxaver, maxaverid, minaver, minaverid))
     cv2.imshow('res', simularmatrix)
-    cv2.imwrite('simularmatrix.jpg', simularmatrix*255)
+    cv2.imwrite(OUTPUT_FILE_PATH+readmatrixpkl+'.jpg', simularmatrix*255)
     cv2.waitKey(1)
     pklfile.close()
 
 if __name__ == "__main__": 
     #test_build_local_graph()
-    #build_all_local_graph()
+    build_all_local_graph()
     test_cmp_two_graph()
-    #read_and_show_simularmatrix()
+    read_and_show_simularmatrix()
+    #test_cmp_modify_graph()
+    #show_neibor_graph_cmp()
