@@ -2,6 +2,7 @@
 # tools for semantic segmentation
 
 import numpy as np
+import cv2
 
 AREA_THRESHOLD = 500
 #################################################
@@ -64,6 +65,7 @@ class seg_at_138():
 
     #remember to -1 when read the id from image
     def read_saved_id(self,filename):
+        print(filename)
         ids = cv2.imread(filename, cv2.IMREAD_UNCHANGED).astype(np.int16) - 1
         return ids
 
@@ -74,7 +76,7 @@ class seg_at_138():
 
     def get_class_mask(self, segimg, classname='unknown'):
         lookupmask = np.zeros(len(self.colors), dtype=np.uint8)
-        if(not segimg == type(lookupmask)):
+        if(not type(segimg) == type(lookupmask)):
             print('[seg_at_138]input image should be numpy.ndarray')
             return None
         if(not classname in self.labels.keys()):
@@ -96,11 +98,13 @@ class seg_at_138():
         _, contours, _ = cv2.findContours(tmpimg, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
         objs = []
         for i in range(len(contours)):
-            M = cv2.moments(contours[i])
+            eps = 0.1*cv2.arcLength(contours[i], True)
+            approx = cv2.approxPolyDP(contours[i], eps, True)
+            M = cv2.moments(approx)
             area = M['m00']
-            center = [int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])]
             if(area > AREA_THRESHOLD):
-                objs.append({'id':i, 'size':area, 'center':center, 'contours':contours[i]})
+                center = [int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])]
+                objs.append({'id':i, 'size':area, 'center':center, 'contours':approx})
 
         return objs
 
