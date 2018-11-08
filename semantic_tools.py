@@ -38,6 +38,7 @@ class seg_at_138():
         self.colors = [[128,64,128], [244,35,232], [70,70,70], [102,102,156], [190,153,153], [153,153,153], [250,170,30], [220,220,0], [107,142,35], [152,251,152], [255,0,0], [220,20,60], [70,130,180], [0,0,142], [0,0,70], [0,60,100], [0,80,100], [0,0,230], [119,11,32], [0,0,0]]
         self.ALL_TYPES = {'0':'road', '1':'sidewalk', '2':'building', '3':'wall', '4':'fence', '5':'pole', '6':'trafficc light', '7':'traffic sign', '8':'vegetation', '9':'terrain', '10':'sky', '11':'person', '12':'rider', '13':'car', '14':'truck', '15':'bus', '16':'train', '17':'motorcycle', '18':'bike', '-1':'unknown',}
         self.labels = {'road':0, 'sidewalk':1, 'building':2, 'wall':3, 'fence':4, 'pole':5, 'traffic light':6, 'traffic sign':7, 'vegetation':8, 'terrain':9, 'sky':10, 'person':11, 'rider':12, 'car':13, 'truck':14, 'bus':15, 'train':16, 'motorcycle':17, 'bike':18, 'unknown':-1, }
+        self.staticclass = ['road', 'sidewalk', 'building', 'wall', 'fence', 'pole', 'traffic light', 'traffic sign', 'vegetation', 'terrain', 'sky']
 
     # change origin id into ALL_TYPES and show in color
     def change_the_ori_typeid(self,type_id):
@@ -97,6 +98,7 @@ class seg_at_138():
         tmpimg = cv2.dilate(tmpimg, kernel, iterations = 2)
         _, contours, _ = cv2.findContours(tmpimg, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
         objs = []
+        num = 0
         for i in range(len(contours)):
             eps = 0.1*cv2.arcLength(contours[i], True)
             approx = cv2.approxPolyDP(contours[i], eps, True)
@@ -104,7 +106,50 @@ class seg_at_138():
             area = M['m00']
             if(area > AREA_THRESHOLD):
                 center = [int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])]
-                objs.append({'id':i, 'size':area, 'center':center, 'contours':approx})
+                objs.append({'id':num, 'size':area, 'center':center, 'contours':approx})
+                num += 1
 
         return objs
 
+    def build_search_tree(self, sedatasets):
+        # judge whether something is in the image
+        pocess_dict = {}
+        for c in self.staticclass:
+            pocess_dict[c] = {'size':{'verylarge':[],'large':[],'middle':[],'small':[],'verysmall':[]},'center':{'left':[],'right':[],'near':[],'middle':[],'far':[]}}
+
+        i = 0
+        for onepic in sedatasets:
+            for c in self.staticclass:
+                if(c in onepic['objs']):
+                    maxarea = 0
+                    maxobj = None
+                    #find largest one
+                    for obj in onepic['objs'][c]:
+                        if(obj['size'] > maxarea):
+                            maxarea = obj['size']
+                            maxobj = obj
+                    if(maxarea < 1000):
+                        pocess_dict[c]['verysmall'].append(i)
+                    elif(maxarea < 4000):
+                        pocess_dict[c]['small'].append(i)
+                    elif(maxarea < 7000):
+                        pocess_dict[c]['middle'].append(i)
+                    elif(maxarea < 10000):
+                        pocess_dict[c]['large'].append(i)
+                    else:
+                        pocess_dict[c]['verylarge'].append(i)
+                    #put in direction
+                    if(obj['center'][0] < 320):
+                        pocess_dict[c]['left'].append(i)
+                    else:
+                        pocess_dict[c]['right'].append(i)
+                    if(obj['center'][1] < 240):
+                        pocess_dict[c]['far'].append(i)
+                    elif(obj['center'][1] > 360):
+                        pocess_dict[c]['near'].append(i)
+                    else:
+                        pocess_dict[c]['middle'].append(i)
+            i += 1
+
+        search_dataset = {'pocess':pocess_dict}
+        return search_dataset
