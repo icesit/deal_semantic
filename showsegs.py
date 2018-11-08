@@ -1,4 +1,6 @@
-
+#
+# show ids in color
+# ids are in image
 import os
 import numpy as np
 import cv2
@@ -34,8 +36,8 @@ if __name__ == '__main__':
                     realid = 19
                 colorimg.append(colors[realid])
         colorimg = np.array(colorimg,dtype='uint8')
-        colorimg = colorimg.reshape((256,512,3))
-        colorimg = cv2.resize(colorimg, (512,256))
+        colorimg = colorimg.reshape((type_id.shape[0],type_id.shape[1],3))
+        colorimg = cv2.resize(colorimg, (type_id.shape[1],type_id.shape[0]))
         cv2.imwrite('./segphoto/2seg/'+filename, colorimg)
         cv2.imshow('c', colorimg)
         cv2.waitKey(100)
