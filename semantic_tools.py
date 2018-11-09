@@ -128,27 +128,27 @@ class seg_at_138():
                         if(obj['size'] > maxarea):
                             maxarea = obj['size']
                             maxobj = obj
-                    if(maxarea < 1000):
-                        pocess_dict[c]['verysmall'].append(i)
-                    elif(maxarea < 4000):
-                        pocess_dict[c]['small'].append(i)
-                    elif(maxarea < 7000):
-                        pocess_dict[c]['middle'].append(i)
-                    elif(maxarea < 10000):
-                        pocess_dict[c]['large'].append(i)
-                    else:
-                        pocess_dict[c]['verylarge'].append(i)
+                    if(maxarea < 11000):
+                        pocess_dict[c]['size']['verysmall'].append(i)
+                    if(9000 < maxarea < 22000):
+                        pocess_dict[c]['size']['small'].append(i)
+                    if(18000 < maxarea < 32000):
+                        pocess_dict[c]['size']['middle'].append(i)
+                    if(28000 < maxarea < 42000):
+                        pocess_dict[c]['size']['large'].append(i)
+                    if(38000 < maxarea):
+                        pocess_dict[c]['size']['verylarge'].append(i)
                     #put in direction
                     if(obj['center'][0] < 320):
-                        pocess_dict[c]['left'].append(i)
+                        pocess_dict[c]['center']['left'].append(i)
                     else:
-                        pocess_dict[c]['right'].append(i)
+                        pocess_dict[c]['center']['right'].append(i)
                     if(obj['center'][1] < 240):
-                        pocess_dict[c]['far'].append(i)
+                        pocess_dict[c]['center']['far'].append(i)
                     elif(obj['center'][1] > 360):
-                        pocess_dict[c]['near'].append(i)
+                        pocess_dict[c]['center']['near'].append(i)
                     else:
-                        pocess_dict[c]['middle'].append(i)
+                        pocess_dict[c]['center']['middle'].append(i)
             i += 1
 
         search_dataset = {'pocess':pocess_dict}
