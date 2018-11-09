@@ -41,6 +41,12 @@ def make_searchtree():
     tree = seg138.build_search_tree(semantic_dataset)
     #print(semantic_dataset)
     #print(tree)
+    for c in tree['pocess'].keys():
+        print('class '+c+' has {} imgs'.format(tree['pocess'][c]))
+        for charactor in tree['pocess'][c].keys():
+            print('  charactor '+charactor)
+            for des in tree['pocess'][c][charactor].keys():
+                print('    '+des+' has {} imgs.'.format(len(tree['pocess'][c][charactor][des])))
     np.save('output/search_tree.npy', [tree])
     #outfile.write(str(tree))
     #outfile.write('}')

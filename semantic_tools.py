@@ -40,7 +40,8 @@ class seg_at_138():
         self.labels = {'road':0, 'sidewalk':1, 'building':2, 'wall':3, 'fence':4, 'pole':5, 'traffic light':6, 'traffic sign':7, 'vegetation':8, 'terrain':9, 'sky':10, 'person':11, 'rider':12, 'car':13, 'truck':14, 'bus':15, 'train':16, 'motorcycle':17, 'bike':18, 'unknown':-1, }
         self.staticclass = ['road', 'sidewalk', 'building', 'wall', 'fence', 'pole', 'traffic light', 'traffic sign', 'vegetation', 'terrain', 'sky']
 
-    # change origin id into ALL_TYPES and show in color
+
+    # change origin id into ALL_TYPES
     def change_the_ori_typeid(self,type_id):
         '''
         colorimg = []
@@ -60,21 +61,22 @@ class seg_at_138():
         colorimg = cv2.resize(colorimg, (640,480))
         '''
         #print(ID_C.dtype, type_id.dtype)
-        idc = self.ID_C[type_id]
+        segimg = self.ID_C[type_id]
 
-        return idc
+        return segimg
 
     #remember to -1 when read the id from image
     def read_saved_id(self,filename):
         print(filename)
-        ids = cv2.imread(filename, cv2.IMREAD_UNCHANGED).astype(np.int16) - 1
-        return ids
+        segimg = cv2.imread(filename, cv2.IMREAD_UNCHANGED).astype(np.int16) - 1
+        return segimg
 
-    def color_ids(self,ids):
-        colorimg = self.colors[ids]
+    def color_segimg(self,segimg):
+        colorimg = self.colors[segimg]
         cv2.imshow('color', colorimg)
         cv2.waitKey(1)
 
+    #input the modified segimg
     def get_class_mask(self, segimg, classname='unknown'):
         lookupmask = np.zeros(len(self.colors), dtype=np.uint8)
         if(not type(segimg) == type(lookupmask)):
@@ -153,3 +155,7 @@ class seg_at_138():
 
         search_dataset = {'pocess':pocess_dict}
         return search_dataset
+
+    #input the modified segimg
+    #return prob of all places
+    def locate_segphoto(self, imgseg, search_dataset):
