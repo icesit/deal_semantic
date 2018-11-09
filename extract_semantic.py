@@ -42,7 +42,7 @@ def make_searchtree():
     #print(semantic_dataset)
     #print(tree)
     for c in tree['pocess'].keys():
-        print('class '+c+' has {} imgs'.format(tree['pocess'][c]))
+        print('class '+c+' has {} imgs'.format(len(tree['pocess'][c])))
         for charactor in tree['pocess'][c].keys():
             print('  charactor '+charactor)
             for des in tree['pocess'][c][charactor].keys():
@@ -53,6 +53,23 @@ def make_searchtree():
     #outfile.close()
     print('done')
 
+def test_locate_img():
+    seseg_cli = zmq_comm_cli_c(name='seg', ip='192.168.22.138', port=1380)
+    print('get seg')
+    img = Image.open('tmp.jpg')
+    img=img_rgb_to_jpeg(img)
+    st = time.time()
+    res=seseg_cli.execute(img)
+    print('change id')
+    seg138 = seg_at_138()
+    segimg = seg138.change_the_ori_typeid(res)
+    print('load tree')
+    search_dataset = np.load('output/search_tree.npy')[0]
+    print('cmp')
+    prob, dirs = seg138.locate_segphoto(segimg, search_dataset)
+    print(prob,dirs)
+
 if __name__ == '__main__':
     #make_sedataset()
-    make_searchtree()
+    #make_searchtree()
+    test_locate_img()

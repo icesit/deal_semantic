@@ -39,6 +39,7 @@ class seg_at_138():
         self.ALL_TYPES = {'0':'road', '1':'sidewalk', '2':'building', '3':'wall', '4':'fence', '5':'pole', '6':'trafficc light', '7':'traffic sign', '8':'vegetation', '9':'terrain', '10':'sky', '11':'person', '12':'rider', '13':'car', '14':'truck', '15':'bus', '16':'train', '17':'motorcycle', '18':'bike', '-1':'unknown',}
         self.labels = {'road':0, 'sidewalk':1, 'building':2, 'wall':3, 'fence':4, 'pole':5, 'traffic light':6, 'traffic sign':7, 'vegetation':8, 'terrain':9, 'sky':10, 'person':11, 'rider':12, 'car':13, 'truck':14, 'bus':15, 'train':16, 'motorcycle':17, 'bike':18, 'unknown':-1, }
         self.staticclass = ['road', 'sidewalk', 'building', 'wall', 'fence', 'pole', 'traffic light', 'traffic sign', 'vegetation', 'terrain', 'sky']
+        self.wantedkey = ['size', 'center']
 
 
     # change origin id into ALL_TYPES
@@ -113,6 +114,7 @@ class seg_at_138():
 
         return objs
 
+    # search_dataset['pocess'][class]['size/center']['small/large/left/right...'] = [1,2,3,4...]
     def build_search_tree(self, sedatasets):
         # judge whether something is in the image
         pocess_dict = {}
@@ -123,39 +125,81 @@ class seg_at_138():
         for onepic in sedatasets:
             for c in self.staticclass:
                 if(c in onepic['objs']):
-                    maxarea = 0
-                    maxobj = None
-                    #find largest one
                     for obj in onepic['objs'][c]:
-                        if(obj['size'] > maxarea):
-                            maxarea = obj['size']
-                            maxobj = obj
-                    if(maxarea < 11000):
-                        pocess_dict[c]['size']['verysmall'].append(i)
-                    if(9000 < maxarea < 22000):
-                        pocess_dict[c]['size']['small'].append(i)
-                    if(18000 < maxarea < 32000):
-                        pocess_dict[c]['size']['middle'].append(i)
-                    if(28000 < maxarea < 42000):
-                        pocess_dict[c]['size']['large'].append(i)
-                    if(38000 < maxarea):
-                        pocess_dict[c]['size']['verylarge'].append(i)
-                    #put in direction
-                    if(obj['center'][0] < 320):
-                        pocess_dict[c]['center']['left'].append(i)
-                    else:
-                        pocess_dict[c]['center']['right'].append(i)
-                    if(obj['center'][1] < 240):
-                        pocess_dict[c]['center']['far'].append(i)
-                    elif(obj['center'][1] > 360):
-                        pocess_dict[c]['center']['near'].append(i)
-                    else:
-                        pocess_dict[c]['center']['middle'].append(i)
+                        maxarea = obj['size']
+                        if(maxarea < 11000):
+                            pocess_dict[c]['size']['verysmall'].append(i)
+                        if(9000 < maxarea < 22000):
+                            pocess_dict[c]['size']['small'].append(i)
+                        if(18000 < maxarea < 32000):
+                            pocess_dict[c]['size']['middle'].append(i)
+                        if(28000 < maxarea < 42000):
+                            pocess_dict[c]['size']['large'].append(i)
+                        if(38000 < maxarea):
+                            pocess_dict[c]['size']['verylarge'].append(i)
+                        #put in direction
+                        if(obj['center'][0] < 320):
+                            pocess_dict[c]['center']['left'].append(i)
+                        else:
+                            pocess_dict[c]['center']['right'].append(i)
+                        if(obj['center'][1] < 240):
+                            pocess_dict[c]['center']['far'].append(i)
+                        elif(obj['center'][1] > 360):
+                            pocess_dict[c]['center']['near'].append(i)
+                        else:
+                            pocess_dict[c]['center']['middle'].append(i)
             i += 1
 
         search_dataset = {'pocess':pocess_dict}
         return search_dataset
 
+    def get_description(self, obj, wantedkey):
+        res = []
+        if(wantedkey == 'center'):
+            if(obj['center'][0] < 320):
+                res.append('left')
+            else:
+                res.append('right')
+            if(obj['center'][1] < 240):
+                res.append('far')
+            elif(obj['center'][1] > 360):
+                res.append('near')
+            else:
+                res[wantedkey].append('middle')
+        elif(wantedkey == 'size'):
+            maxarea = obj['size']
+            if(maxarea < 11000):
+                res.append('verysmall')
+            if(9000 < maxarea < 22000):
+                res.append('small')
+            if(18000 < maxarea < 32000):
+                res.append('middle')
+            if(28000 < maxarea < 42000):
+                res.append('large')
+            if(38000 < maxarea):
+                res.append('verylarge')
+
+        return res
+
     #input the modified segimg
     #return prob of all places
     def locate_segphoto(self, imgseg, search_dataset):
+        onedescribe = {'objs':{}}
+        # get all objs of static class
+        # cal prob of all imgs
+        prob = np.ones(62388,dtype=np.float64) / 62388
+        for c in self.staticclass:
+            maskimg = self.get_class_mask(segimg, c)
+            objs = self.find_objs_in_classmask(maskimg)
+            if(len(objs) > 0):
+                onedescribe['objs'][c] = objs
+                for obj in objs:
+                    for kk in self.wantedkey:
+                        descri = self.get_description(obj, c, kk)
+                        for de in descri:
+                            prob[search_dataset['pocess'][c][kk][de]] *= 1.5
+        prob.shape = (1733,36)
+        prob_point = np.sum(prob, 1)
+        prob_point = prob_point / np.sum(prob_point)
+        dirs = np.argmax(prob, 1).astype(np.float32)/18*math.pi
+        return prob_point, dirs
